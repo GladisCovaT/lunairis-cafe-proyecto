@@ -2,37 +2,47 @@ import { useState } from 'react';
 import { routineOptions } from '../data/routineOptions';
 
 function RoutineResult({ result }) {
-  // result: null (estado inicial), [] (nada seleccionado) o lista de actividades
   if (result === null) {
     return (
-      <>
-        <h3>Tu experiencia aparecerá aquí.</h3>
-        <p>Selecciona tus actividades favoritas para comenzar.</p>
-      </>
+      <div className="result-placeholder">
+        <span className="result-icon">✨</span>
+        <div>
+          <h4>Tu experiencia aparecerá aquí</h4>
+          <p>Selecciona tus actividades favoritas para comenzar a diseñar tu momento.</p>
+        </div>
+      </div>
     );
   }
 
   if (result.length === 0) {
     return (
-      <>
-        <h3>¡Empecemos!</h3>
-        <p>Selecciona al menos una actividad para diseñar tu rutina.</p>
-      </>
+      <div className="result-placeholder warning">
+        <h4>¡Empecemos!</h4>
+        <p>Selecciona al menos una actividad para crear tu rutina ideal.</p>
+      </div>
     );
   }
 
   return (
-    <>
-      <h3>Tu experiencia Lunairis ✨</h3>
-      <p>Hemos preparado esta propuesta con tus preferencias:</p>
-      <ol>
-        {result.map((activity) => (
-          <li key={activity}>{activity}</li>
+    <div className="result-card-active">
+      <div className="result-header">
+        <span className="badge-spark">✨ Experiencia Personalizada</span>
+        <h3>Tu rutina en Lunaris</h3>
+      </div>
+      <p className="result-subtitle">Hemos preparado esta propuesta adaptada a tus preferencias:</p>
+      <ul className="result-list">
+        {result.map((activity, index) => (
+          <li key={activity} className="result-item">
+            <span className="item-number">0{index + 1}</span>
+            <span>{activity}</span>
+          </li>
         ))}
-      </ol>
-      <p><strong>Un momento para ti, a tu manera.</strong></p>
-      <a href="#reservas" className="experience-link">Reservar esta experiencia →</a>
-    </>
+      </ul>
+      <div className="result-footer">
+        <p><strong>Un espacio creado solo para ti.</strong></p>
+        <a href="#reservas" className="experience-link">Reservar esta experiencia →</a>
+      </div>
+    </div>
   );
 }
 
@@ -46,46 +56,62 @@ export default function RoutineSection() {
     );
   };
 
-  // El resultado sigue el orden de las opciones, no el orden en que se marcaron
   const createRoutine = () => {
     setResult(routineOptions.map((option) => option.value).filter((value) => selected.includes(value)));
   };
 
   return (
     <section className="section routine-section" id="rutina">
-      <div className="routine-content">
-        <span className="eyebrow">TU BIENESTAR COMIENZA CONTIGO</span>
-        <h2>Diseña tu rutina ideal.</h2>
-        <p>
-          No todos necesitamos lo mismo. Elige las actividades que
-          te gustaría realizar y crea una experiencia a tu medida.
-        </p>
+      <div className="routine-container">
+        
+        {/* Columna Izquierda: Controles y Opciones */}
+        <div className="routine-content">
+          <span className="eyebrow">TU BIENESTAR COMIENZA CONTIGO</span>
+          <h2>Diseña tu rutina ideal.</h2>
+          <p className="routine-desc">
+            No todos necesitamos lo mismo. Elige las actividades que te gustaría realizar y crea una experiencia a tu medida.
+          </p>
 
-        <div className="routine-options">
-          {routineOptions.map((option) => (
-            <label key={option.value}>
-              <input
-                type="checkbox"
-                value={option.value}
-                checked={selected.includes(option.value)}
-                onChange={() => toggleOption(option.value)}
-              />{' '}
-              {option.label}
-            </label>
-          ))}
+          {/* Opciones en Tarjetas Interactivas */}
+          <div className="routine-options-grid">
+            {routineOptions.map((option) => {
+              const isChecked = selected.includes(option.value);
+              return (
+                <div
+                  key={option.value}
+                  className={`routine-card-option ${isChecked ? 'active' : ''}`}
+                  onClick={() => toggleOption(option.value)}
+                >
+                  <div className="checkbox-custom">
+                    {isChecked && <span className="check-icon">✓</span>}
+                  </div>
+                  <span className="option-label">{option.label}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          <button className="btn-primary" id="createRoutine" onClick={createRoutine}>
+            <span>Crear mi rutina</span>
+            <span className="btn-arrow">✨</span>
+          </button>
+
+          {/* Resultado */}
+          <div className="routine-result" id="routineResult" aria-live="polite">
+            <RoutineResult result={result} />
+          </div>
         </div>
 
-        <button className="btn-primary" id="createRoutine" onClick={createRoutine}>
-          Crear mi rutina
-        </button>
-
-        <div className="routine-result" id="routineResult" aria-live="polite">
-          <RoutineResult result={result} />
+        {/* Columna Derecha: Imagen Editorial */}
+        <div className="routine-image-wrapper">
+          <div className="image-card-frame">
+            <img src="/assets/images/routine.jpg" alt="Espacio creativo y relajante en Lunaris" />
+            <div className="image-caption">
+              <span>Espacio creativo y relajante</span>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="routine-image">
-        <img src="/assets/images/routine.jpg" alt="Espacio creativo y relajante" />
       </div>
     </section>
   );
