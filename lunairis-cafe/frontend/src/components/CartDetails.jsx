@@ -18,6 +18,7 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
   };
 
   const handleClose = () => {
+    console.log("Cerrando carrito...");
     setStep('cart');
     if (typeof onClose === 'function') {
       onClose();
@@ -34,10 +35,13 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, color: '#1b3b2b', fontSize: '20px' }}>Tu pedido</h3>
               
-              {/* Botón X directo y funcional */}
+              {/* Botón X con prioridad de eventos */}
               <button 
                 type="button"
-                onClick={handleClose} 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleClose();
+                }} 
                 style={closeButtonStyle}
               >
                 ✕
@@ -89,7 +93,13 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
               <h3 style={{ color: '#1b3b2b', margin: 0 }}>Pago de Demostración</h3>
-              <button type="button" onClick={handleClose} style={closeButtonStyle}>✕</button>
+              <button 
+                type="button" 
+                onClick={(e) => { e.stopPropagation(); handleClose(); }} 
+                style={closeButtonStyle}
+              >
+                ✕
+              </button>
             </div>
             
             <p style={{ fontSize: '13px', color: '#666', marginBottom: '20px' }}>
@@ -153,7 +163,7 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
 }
 
 /* ==========================================
-   ESTILOS DIRECTOS (Sin conflictos)
+   ESTILOS OPTIMIZADOS
    ========================================== */
 const backdropStyle = {
   position: 'fixed',
@@ -218,7 +228,8 @@ const closeButtonStyle = {
   fontWeight: 'bold',
   fontSize: '16px',
   cursor: 'pointer',
-  zIndex: 100001
+  zIndex: 100002,
+  pointerEvents: 'auto'
 };
 
 const primaryButtonStyle = {

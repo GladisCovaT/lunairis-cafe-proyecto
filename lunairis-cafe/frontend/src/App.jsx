@@ -10,7 +10,6 @@ import Footer from './components/Footer.jsx';
 import CartDetails from './components/CartDetails.jsx';
 
 export default function App() {
-  // IMPORTANTE: Empieza en false para que la página cargue libre y limpia por defecto
   const [isCartOpen, setIsCartOpen] = useState(false);
   
   const [cartItems, setCartItems] = useState([
@@ -25,7 +24,8 @@ export default function App() {
 
   return (
     <>
-      <Header />
+      {/* Si tu Header tiene un botón para abrir el carrito, asegúrate de pasarle la función para abrirlo */}
+      <Header onOpenCart={() => setIsCartOpen(true)} />
       
       <main>
         <Hero />
@@ -38,13 +38,17 @@ export default function App() {
       
       <Footer />
 
-      {/* El carrito solo aparece en pantalla cuando realmente haces clic en ver pedido */}
+      {/* Renderizado condicional limpio */}
       {isCartOpen && (
         <CartDetails 
           items={cartItems}
           total={total}
+          hidden={false}
           onRemove={handleRemoveItem}
-          onClose={() => setIsCartOpen(false)}
+          onClose={() => {
+            console.log("App.jsx recibió la orden de cerrar");
+            setIsCartOpen(false);
+          }}
         />
       )}
     </>
