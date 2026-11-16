@@ -27,9 +27,21 @@ export default function MenuSection() {
       <FilterButtons filters={menuFilters} active={activeFilter} onChange={setActiveFilter} />
 
       <div className="product-grid" id="productGrid">
-        {visibleProducts.map((product) => (
-          <ProductCard key={product.id} product={product} onAdd={cart.addItem} />
-        ))}
+        {visibleProducts.map((product) => {
+          // Buscamos si este producto ya está en el carrito para saber su cantidad
+          const itemInCart = cart.items.find((item) => item.id === product.id);
+          const currentQty = itemInCart ? itemInCart.qty || itemInCart.quantity || 1 : 0;
+
+          return (
+            <ProductCard
+              key={product.id}
+              product={product}
+              quantity={currentQty}
+              onAdd={cart.addItem}
+              onRemove={cart.removeOne}
+            />
+          );
+        })}
       </div>
 
       <CartPanel

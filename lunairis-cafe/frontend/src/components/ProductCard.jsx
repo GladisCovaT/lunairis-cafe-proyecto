@@ -1,21 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
 import { useReveal } from '../hooks/useReveal';
 import { formatPrice } from '../utils/format';
 
-export default function ProductCard({ product, onAdd }) {
+export default function ProductCard({ product, onAdd, onRemove, quantity = 0 }) {
   const [ref, visible] = useReveal();
-  const [added, setAdded] = useState(false);
-  const timer = useRef(null);
-
-  // Limpia el temporizador si la tarjeta desaparece antes de tiempo
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  const handleAdd = () => {
-    onAdd(product);
-    setAdded(true);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setAdded(false), 700);
-  };
 
   return (
     <article ref={ref} className={`product-card reveal${visible ? ' visible' : ''}`}>
@@ -26,7 +13,16 @@ export default function ProductCard({ product, onAdd }) {
         <p>{product.description}</p>
         <div className="product-bottom">
           <strong>{formatPrice(product.price)}</strong>
-          <button className="add-cart" onClick={handleAdd}>{added ? '✓' : '+'}</button>
+          
+          {quantity > 0 ? (
+            <div className="counter-wrapper">
+              <button className="btn-qty" onClick={() => onRemove(product.id)}>-</button>
+              <span className="qty-number">{quantity}</span>
+              <button className="btn-qty" onClick={() => onAdd(product)}>+</button>
+            </div>
+          ) : (
+            <button className="add-cart" onClick={() => onAdd(product)}>+</button>
+          )}
         </div>
       </div>
     </article>
