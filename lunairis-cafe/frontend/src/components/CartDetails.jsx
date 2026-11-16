@@ -33,7 +33,6 @@ export default function CartDetails({ items, total, onRemove, onClose }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, color: '#1b3b2b', fontSize: '20px' }}>Tu pedido</h3>
               
-              {/* Botón X 100% funcional */}
               <button 
                 type="button"
                 onClick={handleClose} 
