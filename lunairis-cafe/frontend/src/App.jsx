@@ -10,10 +10,8 @@ import Footer from './components/Footer.jsx';
 import CartDetails from './components/CartDetails.jsx';
 
 export default function App() {
-  // Estado para controlar si el carrito está abierto o cerrado
   const [isCartOpen, setIsCartOpen] = useState(false);
   
-  // Estado de los productos del carrito
   const [cartItems, setCartItems] = useState([
     { id: '1', name: 'Chocolate caliente', price: 7000, quantity: 1 }
   ]);
@@ -39,14 +37,15 @@ export default function App() {
       
       <Footer />
 
-      {/* Componente del carrito: se oculta o se muestra según el estado isCartOpen */}
-      <CartDetails 
-        items={cartItems}
-        total={total}
-        hidden={!isCartOpen}
-        onRemove={handleRemoveItem}
-        onClose={() => setIsCartOpen(false)}
-      />
+      {/* Renderizado condicional estricto: Si isCartOpen es false, el componente ni existe en la página, por lo que nunca bloqueará clics */}
+      {isCartOpen && (
+        <CartDetails 
+          items={cartItems}
+          total={total}
+          onRemove={handleRemoveItem}
+          onClose={() => setIsCartOpen(false)}
+        />
+      )}
     </>
   );
 }
