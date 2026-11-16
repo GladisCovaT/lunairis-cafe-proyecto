@@ -67,15 +67,14 @@ img {
 }
 
 .logo {
-  font-family: 'Playfair Display', serif;
-  color: var(--green);
-  font-size: 25px;
-  font-weight: 700;
-  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
 }
 
-.logo span {
-  color: var(--gold);
+.logo-img {
+  height: 40px; /* Puedes ajustar este valor (ej. 35px a 50px) según lo que necesites */
+  width: auto;  /* Mantiene la proporción original de tu logo */
+  display: block;
 }
 
 .header nav {
