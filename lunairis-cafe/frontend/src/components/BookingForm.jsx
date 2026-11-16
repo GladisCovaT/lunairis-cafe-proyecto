@@ -29,34 +29,47 @@ export default function BookingForm() {
     setValues((current) => ({ ...current, ageGroup, time: '' }));
   };
 
-  const handleSubmit = (event) => {
+ const handleSubmit = async (event) => {
     event.preventDefault();
 
     const booking = {
-      id: Date.now(),
       name: values.name,
       email: values.email,
+      phone: values.phone || 'No especificado', // Campo de respaldo por si no está en el form
       ageGroup: values.ageGroup,
-      people: Number(values.people),
-      activity: values.activity,
+      guests: Number(values.people), // Aseguramos que sea número para el backend
+      zone: values.activity,         // Mapeamos activity a zone
       date: values.date,
       time: values.time,
-      notes: values.notes,
+      note: values.notes,
       status: 'Pendiente'
     };
 
-    if (booking.ageGroup === 'ninos' && booking.people < 1) {
+    if (booking.ageGroup === 'ninos' && booking.guests < 1) {
       setFeedback({ text: 'Verifica la cantidad de visitantes.', success: false });
       return;
     }
 
-    appendToStorageList(STORAGE_KEYS.reservations, booking);
+    try {
+      setFeedback({ text: 'Enviando reserva...', success: false });
 
-    setFeedback({
-      text: '¡Solicitud registrada! Tu reserva está pendiente de confirmación.',
-      success: true
-    });
-    reset();
+      const response = await fetch('/api/reservas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(booking)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setFeedback({ text: data.message, success: true });
+        if (typeof reset === 'function') reset(); // Limpia el formulario si tienes la función reset
+      } else {
+        setFeedback({ text: data.error || 'Ocurrió un error al reservar.', success: false });
+      }
+    } catch (error) {
+      setFeedback({ text: 'No se pudo conectar con el servidor.', success: false });
+    }
   };
 
   return (
