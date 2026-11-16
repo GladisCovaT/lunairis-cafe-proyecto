@@ -4,7 +4,7 @@ export const experiences = [
     image: '/assets/gaming.jpg',
     alt: 'Zona de videojuegos',
     tag: 'TECNOLOGÍA',
-    title: 'Gaming Zone',
+    title: 'Zona Gaming',
     text: 'Disfruta de PlayStation, videojuegos y experiencias digitales.'
   },
   {
@@ -12,7 +12,7 @@ export const experiences = [
     image: '/assets/books.jpg',
     alt: 'Rincón de lectura',
     tag: 'TRANQUILIDAD',
-    title: 'Book Corner',
+    title: 'Espacio de Lectura',
     text: 'Descubre libros, lee y encuentra un momento para ti.'
   },
   {
@@ -20,7 +20,7 @@ export const experiences = [
     image: '/assets/flowers.jpg',
     alt: 'Pintura y lienzos',
     tag: 'ARTE',
-    title: 'Art Studio',
+    title: 'Estudio de Arte',
     text: 'Pinta, dibuja y expresa tus emociones a través del arte.'
   },
   {
@@ -28,7 +28,7 @@ export const experiences = [
     image: '/assets/taller.jpg',
     alt: 'Taller de flores',
     tag: 'CREATIVIDAD',
-    title: 'Flower Lab',
+    title: 'Taller de Flores',
     text: 'Aprende a armar ramos y crea composiciones florales.'
   },
   {
@@ -36,7 +36,7 @@ export const experiences = [
     image: '/assets/technology.jpg',
     alt: 'Experiencias tecnológicas',
     tag: 'INNOVACIÓN',
-    title: 'Future Lab',
+    title: 'Futuro Digital',
     text: 'Computadores, inteligencia artificial y exploración digital.'
   },
   {
@@ -44,7 +44,7 @@ export const experiences = [
     image: '/assets/workshop.jpg',
     alt: 'Taller creativo',
     tag: 'BIENESTAR',
-    title: 'Creative Moments',
+    title: 'Momentos de Conexión',
     text: 'Talleres, actividades grupales y momentos de conexión.'
   }
 ];
