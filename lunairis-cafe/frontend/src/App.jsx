@@ -10,6 +10,7 @@ import Footer from './components/Footer.jsx';
 import CartDetails from './components/CartDetails.jsx';
 
 export default function App() {
+  // IMPORTANTE: Empieza en false para que la página cargue libre y limpia por defecto
   const [isCartOpen, setIsCartOpen] = useState(false);
   
   const [cartItems, setCartItems] = useState([
@@ -37,7 +38,7 @@ export default function App() {
       
       <Footer />
 
-      {/* Renderizado condicional estricto: Si isCartOpen es false, el componente ni existe en la página, por lo que nunca bloqueará clics */}
+      {/* El carrito solo aparece en pantalla cuando realmente haces clic en ver pedido */}
       {isCartOpen && (
         <CartDetails 
           items={cartItems}

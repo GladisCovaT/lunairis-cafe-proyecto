@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { formatPrice } from '../utils/format';
 
-export default function CartDetails({ items, total, onRemove, onClose }) {
-  const [step, setStep] = useState('cart'); // 'cart', 'checkout', 'success'
+export default function CartDetails({ items, total, hidden, onRemove, onClose }) {
+  const [step, setStep] = useState('cart');
   const [paymentData, setPaymentData] = useState({ name: '', card: '' });
   const [loading, setLoading] = useState(false);
+
+  if (hidden) return null;
 
   const handleSimulatedPayment = (e) => {
     e.preventDefault();
     setLoading(true);
-
     setTimeout(() => {
       setLoading(false);
       setStep('success');
@@ -27,17 +28,17 @@ export default function CartDetails({ items, total, onRemove, onClose }) {
     <div style={backdropStyle} onClick={handleClose}>
       <div style={sidePanelStyle} onClick={(e) => e.stopPropagation()}>
         
-        {/* PASO 1: VISTA DEL CARRITO */}
+        {/* PASO 1: CARRITO */}
         {step === 'cart' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, color: '#1b3b2b', fontSize: '20px' }}>Tu pedido</h3>
               
+              {/* Botón X directo y funcional */}
               <button 
                 type="button"
                 onClick={handleClose} 
                 style={closeButtonStyle}
-                title="Cerrar"
               >
                 ✕
               </button>
@@ -83,7 +84,7 @@ export default function CartDetails({ items, total, onRemove, onClose }) {
           </div>
         )}
 
-        {/* PASO 2: FORMULARIO DE PAGO SIMULADO */}
+        {/* PASO 2: PAGO */}
         {step === 'checkout' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -132,7 +133,7 @@ export default function CartDetails({ items, total, onRemove, onClose }) {
           </div>
         )}
 
-        {/* PASO 3: MENSAJE DE ÉXITO */}
+        {/* PASO 3: ÉXITO */}
         {step === 'success' && (
           <div style={{ textAlign: 'center', marginTop: '60px' }}>
             <div style={{ fontSize: '50px', marginBottom: '15px' }}>🎉</div>
@@ -152,7 +153,7 @@ export default function CartDetails({ items, total, onRemove, onClose }) {
 }
 
 /* ==========================================
-   ESTILOS
+   ESTILOS DIRECTOS (Sin conflictos)
    ========================================== */
 const backdropStyle = {
   position: 'fixed',
@@ -160,12 +161,10 @@ const backdropStyle = {
   left: 0,
   width: '100vw',
   height: '100vh',
-  backgroundColor: 'rgba(0, 0, 0, 0.45)',
-  backdropFilter: 'blur(4px)',
+  backgroundColor: 'rgba(0, 0, 0, 0.4)',
   display: 'flex',
   justifyContent: 'flex-end',
-  zIndex: 99999,
-  cursor: 'pointer'
+  zIndex: 99999
 };
 
 const sidePanelStyle = {
@@ -180,7 +179,6 @@ const sidePanelStyle = {
   justifyContent: 'space-between',
   boxSizing: 'border-box',
   overflowY: 'auto',
-  cursor: 'default',
   zIndex: 100000
 };
 
@@ -220,8 +218,7 @@ const closeButtonStyle = {
   fontWeight: 'bold',
   fontSize: '16px',
   cursor: 'pointer',
-  transition: 'all 0.2s ease',
-  flexShrink: 0
+  zIndex: 100001
 };
 
 const primaryButtonStyle = {
