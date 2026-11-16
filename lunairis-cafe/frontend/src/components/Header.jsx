@@ -8,7 +8,7 @@ export default function Header() {
     <header className="header">
 <div className="logo">
   <a href="#inicio">
-    <img src="/assets/cafee-luna.png" alt="Lunairis Café" className="logo-img" />
+    <img src= "/assets/assets/luna.jpg" alt="Lunairis Café" className="logo-img"/>
   </a>
 </div>
 

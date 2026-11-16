@@ -72,9 +72,11 @@ img {
 }
 
 .logo-img {
-  height: 40px; /* Puedes ajustar este valor (ej. 35px a 50px) según lo que necesites */
-  width: auto;  /* Mantiene la proporción original de tu logo */
+  height: 65px; 
+  width: auto;  
   display: block;
+  object-fit: cover; 
+  border-radius: 50%; 
 }
 
 .header nav {
