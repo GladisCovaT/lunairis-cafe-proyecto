@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { formatPrice } from '../utils/format';
 
-export default function CartDetails({ items, total, hidden, onRemove, onClose }) {
+export default function CartDetails({ items, total, onRemove, onClose }) {
   const [step, setStep] = useState('cart'); // 'cart', 'checkout', 'success'
   const [paymentData, setPaymentData] = useState({ name: '', card: '' });
   const [loading, setLoading] = useState(false);
-
-  if (hidden) return null;
 
   const handleSimulatedPayment = (e) => {
     e.preventDefault();
@@ -18,7 +16,6 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
     }, 1500);
   };
 
-  // Función directa para cerrar el panel y limpiar el flujo
   const handleClose = () => {
     setStep('cart');
     if (typeof onClose === 'function') {
@@ -36,7 +33,7 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, color: '#1b3b2b', fontSize: '20px' }}>Tu pedido</h3>
               
-              {/* Botón X funcional para cerrar y seguir viendo la página */}
+              {/* Botón X 100% funcional */}
               <button 
                 type="button"
                 onClick={handleClose} 
