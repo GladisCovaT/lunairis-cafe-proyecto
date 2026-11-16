@@ -22,15 +22,19 @@ export default function App() {
     setCartItems(cartItems.filter(item => item.id !== id));
   };
 
+  // NUEVA FUNCIÓN: Vacía completamente el carrito y el almacenamiento local si usas alguno
+  const handleClearCart = () => {
+    setCartItems([]);
+  };
+
   return (
     <>
-      {/* Si tu Header tiene un botón para abrir el carrito, asegúrate de pasarle la función para abrirlo */}
       <Header onOpenCart={() => setIsCartOpen(true)} />
       
       <main>
         <Hero />
         <ExperiencesSection />
-        <MenuSection />
+        <MenuSection onOpenCart={() => setIsCartOpen(true)} />
         <RoutineSection />
         <BookingSection />
         <ContactSection />
@@ -38,17 +42,14 @@ export default function App() {
       
       <Footer />
 
-      {/* Renderizado condicional limpio */}
       {isCartOpen && (
         <CartDetails 
           items={cartItems}
           total={total}
           hidden={false}
           onRemove={handleRemoveItem}
-          onClose={() => {
-            console.log("App.jsx recibió la orden de cerrar");
-            setIsCartOpen(false);
-          }}
+          onClearCart={handleClearCart} // <-- Le pasamos la función aquí
+          onClose={() => setIsCartOpen(false)}
         />
       )}
     </>
