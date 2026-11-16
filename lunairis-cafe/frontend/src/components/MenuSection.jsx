@@ -3,12 +3,10 @@ import SectionHeading from './SectionHeading.jsx';
 import FilterButtons from './FilterButtons.jsx';
 import ProductCard from './ProductCard.jsx';
 import CartPanel from './CartPanel.jsx';
-import { useCart } from '../hooks/useCart';
 import { menuFilters, products } from '../data/products';
 
-export default function MenuSection({ onOpenCart }) {
+export default function MenuSection({ cart, onOpenCart }) { // Recibe cart y onOpenCart
   const [activeFilter, setActiveFilter] = useState('todos');
-  const cart = useCart();
 
   const visibleProducts = products.filter(
     (product) => activeFilter === 'todos' || product.category === activeFilter
@@ -41,11 +39,10 @@ export default function MenuSection({ onOpenCart }) {
         })}
       </div>
 
-      {/* CartPanel ahora le avisa al padre (App.jsx) que debe abrir el carrito global */}
       <CartPanel
         count={cart.count}
         total={cart.total}
-        onToggleDetails={onOpenCart}
+        onToggleDetails={onOpenCart} 
       />
     </section>
   );

@@ -8,33 +8,24 @@ import BookingSection from './components/BookingSection.jsx';
 import ContactSection from './components/ContactSection.jsx';
 import Footer from './components/Footer.jsx';
 import CartDetails from './components/CartDetails.jsx';
+import { useCart } from './hooks/useCart';
 
 export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   
-  const [cartItems, setCartItems] = useState([
-    { id: '1', name: 'Chocolate caliente', price: 7000, quantity: 1 }
-  ]);
-
-  const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-  const handleRemoveItem = (id) => {
-    setCartItems(cartItems.filter(item => item.id !== id));
-  };
-
-  // NUEVA FUNCIÓN: Vacía completamente el carrito y el almacenamiento local si usas alguno
-  const handleClearCart = () => {
-    setCartItems([]);
-  };
+  // El carrito vive aquí arriba, siendo la única fuente de verdad
+  const cart = useCart();
 
   return (
     <>
-      <Header onOpenCart={() => setIsCartOpen(true)} />
+      {/* Pasamos los datos del carrito o la función para abrirlo al Header si lo necesita */}
+      <Header onOpenCart={() => setIsCartOpen(true)} count={cart.count} />
       
       <main>
         <Hero />
         <ExperiencesSection />
-        <MenuSection onOpenCart={() => setIsCartOpen(true)} />
+        {/* Le pasamos el objeto 'cart' completo a MenuSection para que use los mismos datos */}
+        <MenuSection cart={cart} onOpenCart={() => setIsCartOpen(true)} />
         <RoutineSection />
         <BookingSection />
         <ContactSection />
@@ -44,11 +35,11 @@ export default function App() {
 
       {isCartOpen && (
         <CartDetails 
-          items={cartItems}
-          total={total}
+          items={cart.items}
+          total={cart.total}
           hidden={false}
-          onRemove={handleRemoveItem}
-          onClearCart={handleClearCart} // <-- Le pasamos la función aquí
+          onRemove={cart.removeOne}
+          onClearCart={cart.clearCart}
           onClose={() => setIsCartOpen(false)}
         />
       )}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { formatPrice } from '../utils/format';
 
-export default function CartDetails({ items, total, hidden, onRemove, onClose }) {
+export default function CartDetails({ items, total, hidden, onRemove, onClose, onClearCart }) {
   const [step, setStep] = useState('cart');
   const [paymentData, setPaymentData] = useState({ name: '', card: '' });
   const [loading, setLoading] = useState(false);
@@ -18,11 +18,18 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
   };
 
   const handleClose = () => {
-    console.log("Cerrando carrito...");
     setStep('cart');
     if (typeof onClose === 'function') {
       onClose();
     }
+  };
+
+  // Función segura para finalizar el éxito y vaciar el carrito
+  const handleFinishSuccess = () => {
+    if (typeof onClearCart === 'function') {
+      onClearCart();
+    }
+    handleClose();
   };
 
   return (
@@ -35,13 +42,9 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, color: '#1b3b2b', fontSize: '20px' }}>Tu pedido</h3>
               
-              {/* Botón X con prioridad de eventos */}
               <button 
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleClose();
-                }} 
+                onClick={(e) => { e.stopPropagation(); handleClose(); }} 
                 style={closeButtonStyle}
               >
                 ✕
@@ -151,7 +154,7 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
             <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', margin: '15px 0 30px 0' }}>
               Tu pago de demostración se ha completado con éxito. El equipo de Lunairis Café ya ha recibido tu orden.
             </p>
-            <button onClick={handleClose} style={primaryButtonStyle}>
+            <button onClick={handleFinishSuccess} style={primaryButtonStyle}>
               Entendido / Cerrar
             </button>
           </div>
@@ -163,7 +166,7 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
 }
 
 /* ==========================================
-   ESTILOS OPTIMIZADOS
+   ESTILOS DIRECTOS
    ========================================== */
 const backdropStyle = {
   position: 'fixed',
