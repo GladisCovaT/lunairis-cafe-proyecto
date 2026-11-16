@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { formatPrice } from '../utils/format';
 
 export default function CartDetails({ items, total, hidden, onRemove, onClose }) {
-  const [step, setStep] = useState('cart'); // 'cart', 'checkout', 'success'
+  const [step, setStep] = useState('cart');
   const [paymentData, setPaymentData] = useState({ name: '', card: '' });
   const [loading, setLoading] = useState(false);
 
@@ -11,36 +11,34 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
   const handleSimulatedPayment = (e) => {
     e.preventDefault();
     setLoading(true);
-
-    // Simulamos el tiempo de respuesta del banco (1.5 segundos)
     setTimeout(() => {
       setLoading(false);
       setStep('success');
     }, 1500);
   };
 
-  const handleCloseModal = () => {
-    setStep('cart'); // Reinicia siempre al carrito al cerrar
+  const handleClose = () => {
+    setStep('cart');
     if (typeof onClose === 'function') {
       onClose();
     }
   };
 
   return (
-    <div className="cart-backdrop" style={backdropStyle}>
-      <div className="cart-side-panel" style={sidePanelStyle}>
+    <div style={backdropStyle}>
+      <div style={sidePanelStyle}>
         
-        {/* PASO 1: VISTA DEL CARRITO */}
+        {/* PASO 1: CARRITO */}
         {step === 'cart' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, color: '#1b3b2b', fontSize: '20px' }}>Tu pedido</h3>
               
-              {/* Botón X circular, compacto y alineado */}
+              {/* Botón X directo y funcional */}
               <button 
-                onClick={handleCloseModal} 
-                style={closeButtonStyle} 
-                title="Cerrar"
+                type="button"
+                onClick={handleClose} 
+                style={closeButtonStyle}
               >
                 ✕
               </button>
@@ -86,10 +84,14 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
           </div>
         )}
 
-        {/* PASO 2: FORMULARIO DE PAGO SIMULADO */}
+        {/* PASO 2: PAGO */}
         {step === 'checkout' && (
           <div>
-            <h3 style={{ color: '#1b3b2b', marginBottom: '5px' }}>Pago de Demostración</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ color: '#1b3b2b', margin: 0 }}>Pago de Demostración</h3>
+              <button type="button" onClick={handleClose} style={closeButtonStyle}>✕</button>
+            </div>
+            
             <p style={{ fontSize: '13px', color: '#666', marginBottom: '20px' }}>
               Entorno seguro simulado. No se realizarán cargos reales.
             </p>
@@ -131,7 +133,7 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
           </div>
         )}
 
-        {/* PASO 3: MENSAJE DE ÉXITO */}
+        {/* PASO 3: ÉXITO */}
         {step === 'success' && (
           <div style={{ textAlign: 'center', marginTop: '60px' }}>
             <div style={{ fontSize: '50px', marginBottom: '15px' }}>🎉</div>
@@ -139,10 +141,7 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
             <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', margin: '15px 0 30px 0' }}>
               Tu pago de demostración se ha completado con éxito. El equipo de Lunairis Café ya ha recibido tu orden.
             </p>
-            <button 
-              onClick={handleCloseModal} 
-              style={primaryButtonStyle}
-            >
+            <button onClick={handleClose} style={primaryButtonStyle}>
               Entendido / Cerrar
             </button>
           </div>
@@ -153,21 +152,19 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
   );
 }
 
-
 /* ==========================================
-   ESTILOS PROFESIONALES (Limpios y Modernos)
-   ================================---------- */
+   ESTILOS DIRECTOS (Sin conflictos)
+   ========================================== */
 const backdropStyle = {
   position: 'fixed',
   top: 0,
   left: 0,
   width: '100vw',
   height: '100vh',
-  backgroundColor: 'rgba(0, 0, 0, 0.45)', // Oscurece y desvanece el fondo
-  backdropFilter: 'blur(4px)',             // Efecto difuminado elegante
+  backgroundColor: 'rgba(0, 0, 0, 0.4)',
   display: 'flex',
-  justifyContent: 'flex-end',              // Panel pegado a la derecha
-  zIndex: 9999
+  justifyContent: 'flex-end',
+  zIndex: 99999
 };
 
 const sidePanelStyle = {
@@ -176,12 +173,13 @@ const sidePanelStyle = {
   height: '100%',
   backgroundColor: '#ffffff',
   padding: '30px',
-  boxShadow: '-10px 0 30px rgba(0,0,0,0.15)',
+  boxShadow: '-10px 0 30px rgba(0,0,0,0.2)',
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'space-between',
   boxSizing: 'border-box',
-  overflowY: 'auto'
+  overflowY: 'auto',
+  zIndex: 100000
 };
 
 const itemRowStyle = {
@@ -211,21 +209,20 @@ const closeButtonStyle = {
   background: 'transparent',
   color: '#1b3b2b',
   border: '1px solid #1b3b2b',
-  borderRadius: '50%',          // Completamente circular
-  width: '32px',
-  height: '32px',
+  borderRadius: '50%',
+  width: '34px',
+  height: '34px',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   fontWeight: 'bold',
   fontSize: '16px',
   cursor: 'pointer',
-  transition: 'all 0.2s ease',
-  flexShrink: 0
+  zIndex: 100001
 };
 
 const primaryButtonStyle = {
-  background: '#1b3b2b', // Verde esmeralda Lunairis
+  background: '#1b3b2b',
   color: '#ffffff',
   border: 'none',
   padding: '12px 20px',
@@ -234,8 +231,7 @@ const primaryButtonStyle = {
   fontSize: '14px',
   cursor: 'pointer',
   width: '100%',
-  boxShadow: '0 4px 10px rgba(27, 59, 43, 0.2)',
-  transition: 'all 0.2s ease'
+  boxShadow: '0 4px 10px rgba(27, 59, 43, 0.2)'
 };
 
 const secondaryButtonStyle = {
@@ -247,8 +243,7 @@ const secondaryButtonStyle = {
   fontWeight: '600',
   fontSize: '14px',
   cursor: 'pointer',
-  width: '100%',
-  transition: 'all 0.2s ease'
+  width: '100%'
 };
 
 const labelStyle = {
