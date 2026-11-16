@@ -19,6 +19,13 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
     }, 1500);
   };
 
+  const handleCloseModal = () => {
+    setStep('cart'); // Reinicia siempre al carrito al cerrar
+    if (typeof onClose === 'function') {
+      onClose();
+    }
+  };
+
   return (
     <div className="cart-backdrop" style={backdropStyle}>
       <div className="cart-side-panel" style={sidePanelStyle}>
@@ -28,7 +35,15 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, color: '#1b3b2b', fontSize: '20px' }}>Tu pedido</h3>
-              <button onClick={onClose} style={secondaryButtonStyle} title="Cerrar">✕</button>
+              
+              {/* Botón X circular, compacto y alineado */}
+              <button 
+                onClick={handleCloseModal} 
+                style={closeButtonStyle} 
+                title="Cerrar"
+              >
+                ✕
+              </button>
             </div>
 
             {items.length === 0 ? (
@@ -124,7 +139,10 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
             <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', margin: '15px 0 30px 0' }}>
               Tu pago de demostración se ha completado con éxito. El equipo de Lunairis Café ya ha recibido tu orden.
             </p>
-            <button onClick={onClose} style={primaryButtonStyle}>
+            <button 
+              onClick={handleCloseModal} 
+              style={primaryButtonStyle}
+            >
               Entendido / Cerrar
             </button>
           </div>
@@ -134,6 +152,7 @@ export default function CartDetails({ items, total, hidden, onRemove, onClose })
     </div>
   );
 }
+
 
 /* ==========================================
    ESTILOS PROFESIONALES (Limpios y Modernos)
@@ -186,6 +205,23 @@ const removeButtonStyle = {
   alignItems: 'center',
   justifyContent: 'center',
   fontSize: '14px'
+};
+
+const closeButtonStyle = {
+  background: 'transparent',
+  color: '#1b3b2b',
+  border: '1px solid #1b3b2b',
+  borderRadius: '50%',          // Completamente circular
+  width: '32px',
+  height: '32px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontWeight: 'bold',
+  fontSize: '16px',
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
+  flexShrink: 0
 };
 
 const primaryButtonStyle = {
