@@ -106,17 +106,15 @@ export default function RoutineSection() {
         <div className="routine-collage-wrapper">
           <div className="photo-card main-photo">
             <img src="/assets/lunairis.jpg" alt="Café artesanal en Lunaris" />
-            <div className="photo-tag">☕ Café de un hogar</div>
           </div>
 
           <div className="photo-card secondary-photo">
             <img src="/assets/videojuegos.jpg" alt="Zona de lectura y arte" />
-            <div className="photo-tag">🎨 Demuestra que eres dentro de un mundo tecnologico</div>
+           
           </div>
 
           <div className="photo-card secondary-photo">
             <img src="/assets/taller-flores.jpg" alt="Talleres y relajación" />
-            <div className="photo-tag">🌸 Talleres de flores</div>
           </div>
         </div>
       </div>

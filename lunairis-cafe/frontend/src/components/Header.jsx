@@ -6,7 +6,11 @@ export default function Header() {
 
   return (
     <header className="header">
-      <a href="#inicio" className="logo">LUNAIRIS<span> CAFÉ</span></a>
+<div className="logo">
+  <a href="#inicio">
+    <img src="/assets/cafe-luna.png" alt="Lunairis Café" className="logo-img" />
+  </a>
+</div>
 
       <button
         className="menu-toggle"
