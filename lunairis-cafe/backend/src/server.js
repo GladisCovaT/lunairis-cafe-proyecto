@@ -143,6 +143,51 @@ app.post('/api/orders', contactLimiter, async (req, res, next) => {
   }
 });
 
+// ==========================================
+// NUEVA RUTA DE RESERVAS (Colocada aquí correctamente)
+// ==========================================
+app.post('/api/reservas', contactLimiter, async (req, res, next) => {
+  try {
+    const name = cleanText(req.body.name, 80);
+    const email = cleanText(req.body.email, 120).toLowerCase();
+    const phone = cleanText(req.body.phone, 30);
+    const date = cleanText(req.body.date, 20);
+    const time = cleanText(req.body.time, 20);
+    const guests = Number(req.body.guests);
+    const zone = cleanText(req.body.zone, 50);
+    const note = cleanText(req.body.note, 300);
+
+    if (name.length < 2 || !isValidEmail(email) || phone.length < 7 || !date || !time || !Number.isInteger(guests) || guests < 1) {
+      return res.status(400).json({ error: 'Completa tu nombre, correo, teléfono, fecha, hora y número de personas.' });
+    }
+
+    const saved = await updateData(data => {
+      if (!Array.isArray(data.reservations)) {
+        data.reservations = [];
+      }
+      const reservation = {
+        id: crypto.randomUUID(),
+        name,
+        email,
+        phone,
+        date,
+        time,
+        guests,
+        zone: zone || 'General',
+        note,
+        status: 'Pendiente',
+        createdAt: new Date().toISOString()
+      };
+      data.reservations.unshift(reservation);
+      return reservation;
+    });
+
+    res.status(201).json({ message: '¡Reserva solicitada con éxito! Nos pondremos en contacto para confirmarla.', reservationId: saved.id });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/admin/login', loginLimiter, async (req, res, next) => {
   try {
     const email = cleanText(req.body.email, 120).toLowerCase();
@@ -286,6 +331,7 @@ app.patch('/api/admin/orders/:id', requireAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Manejadores de errores y arranque al final de todo
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Ruta de API no encontrada.' }));
 app.use((error, _req, res, _next) => {
   console.error(error);
@@ -297,47 +343,4 @@ ensureStore().then(() => {
 }).catch(error => {
   console.error('No se pudo iniciar el almacenamiento:', error);
   process.exit(1);
-});
-
-app.post('/api/reservas', contactLimiter, async (req, res, next) => {
-  try {
-    const name = cleanText(req.body.name, 80);
-    const email = cleanText(req.body.email, 120).toLowerCase();
-    const phone = cleanText(req.body.phone, 30);
-    const date = cleanText(req.body.date, 20);
-    const time = cleanText(req.body.time, 20);
-    const guests = Number(req.body.guests);
-    const zone = cleanText(req.body.zone, 50);
-    const note = cleanText(req.body.note, 300);
-
-    if (name.length < 2 || !isValidEmail(email) || phone.length < 7 || !date || !time || !Number.isInteger(guests) || guests < 1) {
-      return res.status(400).json({ error: 'Completa tu nombre, correo, teléfono, fecha, hora y número de personas.' });
-    }
-
-    const saved = await updateData(data => {
-      // Asegurarnos de que el array reservations exista en el JSON
-      if (!Array.isArray(data.reservations)) {
-        data.reservations = [];
-      }
-      const reservation = {
-        id: crypto.randomUUID(),
-        name,
-        email,
-        phone,
-        date,
-        time,
-        guests,
-        zone: zone || 'General',
-        note,
-        status: 'Pendiente',
-        createdAt: new Date().toISOString()
-      };
-      data.reservations.unshift(reservation);
-      return reservation;
-    });
-
-    res.status(201).json({ message: '¡Reserva solicitada con éxito! Nos pondremos en contacto para confirmarla.', reservationId: saved.id });
-  } catch (error) {
-    next(error);
-  }
 });
