@@ -23,8 +23,12 @@ const {
 // ==========================================
 // CONFIGURACION GENERAL
 // ==========================================
+import cors from 'cors'; 
 
-const app = express();
+const app = express(); 
+
+app.use(cors());
+app.use(express.json({ limit: '30kb' }));
 
 const PORT = Number(process.env.PORT) || 3000;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
