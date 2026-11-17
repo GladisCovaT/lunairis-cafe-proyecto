@@ -1,45 +1,256 @@
 
-require('dotenv').config({
-  path: require('node:path').join(__dirname, '..', '..', '.env')
+import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
+
+import express from 'express';
+import session from 'express-session';
+import bcrypt from 'bcryptjs';
+import helmet from 'helmet';
+import cors from 'cors';
+import mongoose from 'mongoose';
+import MongoStore from 'connect-mongo';
+import { rateLimit } from 'express-rate-limit';
+import { GoogleGenAI } from '@google/genai';
+
+// ==========================================
+// CONFIGURACION INICIAL
+// ==========================================
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({
+  path: path.resolve(process.cwd(), '.env')
 });
 
-const crypto = require('node:crypto');
-const path = require('node:path');
-const express = require('express');
-const session = require('express-session');
-const bcrypt = require('bcryptjs');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit').rateLimit;
-const mongoose = require('mongoose');
-
-const { GoogleGenAI } = require('@google/genai');
-
-const {
-  ensureStore,
-  readData,
-  updateData
-} = require('./store');
-
-// ==========================================
-// CONFIGURACION GENERAL
-// ==========================================
-import cors from 'cors'; 
-
-const app = express(); 
-
-app.use(cors());
-app.use(express.json({ limit: '30kb' }));
+const app = express();
 
 const PORT = Number(process.env.PORT) || 3000;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-const FRONTEND_DIR = path.join(
+const FRONTEND_DIR = path.resolve(
   __dirname,
-  '..',
-  '..',
-  'frontend',
-  'dist'
+  '../../frontend/dist'
 );
+
+const MONGODB_URI = process.env.MONGODB_URI;
+console.log('ENV cargado:', !!process.env.MONGODB_URI);
+console.log('Ruta del ENV:', path.resolve(__dirname, '../../.env'));
+console.log('MongoStore URI disponible:', !!MONGODB_URI);
+
+const SESSION_SECRET = process.env.SESSION_SECRET;
+
+if (!MONGODB_URI) {
+  throw new Error('Falta configurar MONGODB_URI en el archivo .env');
+}
+
+if (IS_PRODUCTION && !SESSION_SECRET) {
+  throw new Error('Falta configurar SESSION_SECRET en producción.');
+}
+
+if (IS_PRODUCTION) {
+  app.set('trust proxy', 1);
+}
+
+app.disable('x-powered-by');
+
+// ==========================================
+// CONFIGURACION CORS
+// ==========================================
+
+const allowedOrigins = (
+  process.env.FRONTEND_ORIGIN ||
+  'http://localhost:5173,http://127.0.0.1:5173'
+)
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Origen no autorizado por CORS.'));
+  },
+  credentials: true
+}));
+
+// ==========================================
+// SEGURIDAD
+// ==========================================
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'", 'https:'],
+      fontSrc: ["'self'", 'data:', 'https:'],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      upgradeInsecureRequests: IS_PRODUCTION ? [] : null
+    }
+  }
+}));
+
+app.use(express.json({
+  limit: '30kb'
+}));
+
+app.use(express.urlencoded({
+  extended: false,
+  limit: '10kb'
+}));
+
+// ==========================================
+// CONEXION MONGODB ATLAS
+// ==========================================
+
+const storeSchema = new mongoose.Schema({
+  key: {
+    type: String,
+    required: true,
+    unique: true
+  },
+
+  products: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: []
+  },
+
+  messages: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: []
+  },
+
+  orders: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: []
+  },
+
+  reservations: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: []
+  }
+
+}, {
+  timestamps: true,
+  minimize: false
+});
+
+const Store = mongoose.model('LunairisData', storeSchema);
+
+// ==========================================
+// FUNCIONES DE ALMACENAMIENTO
+// ==========================================
+
+let writeQueue = Promise.resolve();
+
+async function ensureStore() {
+  await Store.findOneAndUpdate(
+    { key: 'main' },
+    {
+      $setOnInsert: {
+        key: 'main',
+        products: [],
+        messages: [],
+        orders: [],
+        reservations: []
+      }
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true
+    }
+  );
+}
+
+async function readData() {
+  const data = await Store.findOne({
+    key: 'main'
+  }).lean();
+
+  if (!data) {
+    throw new Error('No se encontró el almacenamiento de Lunairis.');
+  }
+
+  return {
+    products: data.products || [],
+    messages: data.messages || [],
+    orders: data.orders || [],
+    reservations: data.reservations || []
+  };
+}
+
+function updateData(callback) {
+  const task = writeQueue.then(async () => {
+    const document = await Store.findOne({
+      key: 'main'
+    });
+
+    if (!document) {
+      throw new Error('No existe el almacenamiento principal.');
+    }
+
+    const data = {
+      products: document.products || [],
+      messages: document.messages || [],
+      orders: document.orders || [],
+      reservations: document.reservations || []
+    };
+
+    const result = callback(data);
+
+    document.set({
+      products: data.products,
+      messages: data.messages,
+      orders: data.orders,
+      reservations: data.reservations
+    });
+
+    await document.save();
+
+    return result;
+  });
+
+  writeQueue = task.catch(() => {});
+
+  return task;
+}
+
+ // ==========================================
+ // CONFIGURACION DE SESIONES
+ // ==========================================
+
+app.use(session({
+  name: 'lunairis.sid',
+
+  secret: SESSION_SECRET || 'lunairis-clave-local-desarrollo',
+
+  resave: false,
+
+  saveUninitialized: false,
+
+  store: MongoStore.create({
+    mongoUrl: MONGODB_URI,
+    collectionName: 'sessions',
+    ttl: 60 * 60 * 4
+  }),
+
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: IS_PRODUCTION,
+    maxAge: 1000 * 60 * 60 * 4
+  }
+}));
 
 // ==========================================
 // CONFIGURACION DE GEMINI
@@ -51,88 +262,8 @@ const ai = process.env.GEMINI_API_KEY
     })
   : null;
 
-// ==========================================
-// CONEXION A MONGODB ATLAS
-// ==========================================
-
-if (process.env.MONGODB_URI) {
-  mongoose.connect(process.env.MONGODB_URI)
-    .then(() => {
-      console.log('🟢 Conectado exitosamente a MongoDB Atlas');
-    })
-    .catch((error) => {
-      console.error('🔴 Error al conectar a MongoDB Atlas:', error.message);
-    });
-} else {
-  console.warn('⚠️ No se encontró MONGODB_URI en el archivo .env');
-}
-
-// ==========================================
-// VALIDACION DE VARIABLES
-// ==========================================
-
-if (
-  IS_PRODUCTION &&
-  (
-    !process.env.SESSION_SECRET ||
-    !process.env.ADMIN_EMAIL ||
-    !process.env.ADMIN_PASSWORD_HASH
-  )
-) {
-  throw new Error(
-    'Configura SESSION_SECRET, ADMIN_EMAIL y ADMIN_PASSWORD_HASH antes de iniciar en producción.'
-  );
-}
-
-if (IS_PRODUCTION) {
-  app.set('trust proxy', 1);
-}
-
-// ==========================================
-// SEGURIDAD Y MIDDLEWARES
-// ==========================================
-
-app.disable('x-powered-by');
-
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:'],
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'", 'data:'],
-      objectSrc: ["'none'"],
-      frameAncestors: ["'none'"],
-      upgradeInsecureRequests: IS_PRODUCTION ? [] : null
-    }
-  }
-}));
-
-app.use(express.json({ limit: '30kb' }));
-
-app.use(express.urlencoded({
-  extended: false,
-  limit: '10kb'
-}));
-
-app.use(session({
-  name: 'lunairis.sid',
-  secret: process.env.SESSION_SECRET || 'solo-desarrollo-cambia-esta-clave',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: IS_PRODUCTION,
-    maxAge: 1000 * 60 * 60 * 4
-  }
-}));
-
-app.use(express.static(FRONTEND_DIR, {
-  extensions: ['html']
-}));
+const GEMINI_MODEL =
+  process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 // ==========================================
 // LIMITES DE SOLICITUDES
@@ -171,6 +302,17 @@ function cleanText(value, maxLength = 500) {
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isValidDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const date = new Date(`${value}T12:00:00`);
+
+  return !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value;
 }
 
 function requireAdmin(req, res, next) {
@@ -215,7 +357,7 @@ function validProduct(body = {}) {
 
 // ==========================================
 // ASISTENTE DE INTELIGENCIA ARTIFICIAL
-// GOOGLE GEMINI - LUNAIRIS CAFE
+// GEMINI - LUNAIRIS CAFE
 // ==========================================
 
 app.post(
@@ -241,7 +383,7 @@ app.post(
       }
 
       const response = await ai.models.generateContent({
-        model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
+        model: GEMINI_MODEL,
 
         contents: prompt,
 
@@ -278,7 +420,9 @@ app.post(
             Cuando no conozcas un dato,
             indícalo claramente.
           `,
+
           maxOutputTokens: 1200,
+
           temperature: 0.7
         }
       });
@@ -299,7 +443,7 @@ app.post(
 
     } catch (error) {
       console.error(
-        '🔴 Error al conectar con Gemini:',
+        'Error de Gemini:',
         error.message
       );
 
@@ -312,13 +456,17 @@ app.post(
 );
 
 // ==========================================
-// RUTA DE COMPROBACION DEL SERVIDOR
+// COMPROBACION DEL SERVIDOR
 // ==========================================
 
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', async (_req, res) => {
   res.json({
     ok: true,
-    app: 'Lunairis Café API'
+    app: 'Lunairis Café API',
+    database: mongoose.connection.readyState === 1
+      ? 'connected'
+      : 'disconnected',
+    gemini: Boolean(ai)
   });
 });
 
@@ -343,267 +491,280 @@ app.get('/api/products', async (_req, res, next) => {
 // FORMULARIO DE CONTACTO
 // ==========================================
 
-app.post('/api/contact', contactLimiter, async (req, res, next) => {
-  try {
-    const name = cleanText(req.body.name, 80);
-    const email = cleanText(req.body.email, 120).toLowerCase();
-    const topic = cleanText(req.body.topic, 80);
-    const message = cleanText(req.body.message, 1200);
+app.post(
+  '/api/contact',
+  contactLimiter,
+  async (req, res, next) => {
+    try {
+      const name = cleanText(req.body.name, 80);
+      const email = cleanText(req.body.email, 120).toLowerCase();
+      const topic = cleanText(req.body.topic, 80);
+      const message = cleanText(req.body.message, 1200);
 
-    if (
-      name.length < 2 ||
-      !isValidEmail(email) ||
-      message.length < 10
-    ) {
-      return res.status(400).json({
-        error: 'Revisa tu nombre, correo y mensaje (mínimo 10 caracteres).'
+      if (
+        name.length < 2 ||
+        !isValidEmail(email) ||
+        message.length < 10
+      ) {
+        return res.status(400).json({
+          error: 'Revisa tu nombre, correo y mensaje (mínimo 10 caracteres).'
+        });
+      }
+
+      const saved = await updateData(data => {
+        const item = {
+          id: crypto.randomUUID(),
+          name,
+          email,
+          topic: topic || 'Mensaje general',
+          message,
+          status: 'Nuevo',
+          createdAt: new Date().toISOString()
+        };
+
+        data.messages.unshift(item);
+
+        return item;
       });
+
+      res.status(201).json({
+        message: 'Tu mensaje llegó a Lunairis. Gracias por escribirnos.',
+        id: saved.id
+      });
+
+    } catch (error) {
+      next(error);
     }
-
-    const saved = await updateData(data => {
-      const item = {
-        id: crypto.randomUUID(),
-        name,
-        email,
-        topic: topic || 'Mensaje general',
-        message,
-        status: 'Nuevo',
-        createdAt: new Date().toISOString()
-      };
-
-      data.messages.unshift(item);
-
-      return item;
-    });
-
-    res.status(201).json({
-      message: 'Tu mensaje llegó a Lunairis. Gracias por escribirnos.',
-      id: saved.id
-    });
-
-  } catch (error) {
-    next(error);
   }
-});
+);
 
 // ==========================================
 // PEDIDOS
 // ==========================================
 
-app.post('/api/orders', contactLimiter, async (req, res, next) => {
-  try {
-    const name = cleanText(req.body.name, 80);
-    const phone = cleanText(req.body.phone, 30);
-    const note = cleanText(req.body.note, 400);
+app.post(
+  '/api/orders',
+  contactLimiter,
+  async (req, res, next) => {
+    try {
+      const name = cleanText(req.body.name, 80);
+      const phone = cleanText(req.body.phone, 30);
+      const note = cleanText(req.body.note, 400);
 
-    const requestedItems = Array.isArray(req.body.items)
-      ? req.body.items
-      : [];
+      const requestedItems = Array.isArray(req.body.items)
+        ? req.body.items
+        : [];
 
-    if (
-      name.length < 2 ||
-      phone.length < 7 ||
-      requestedItems.length < 1 ||
-      requestedItems.length > 20
-    ) {
-      return res.status(400).json({
-        error: 'Completa tu nombre, teléfono y agrega al menos un producto.'
-      });
-    }
-
-    const saved = await updateData(data => {
-      const items = [];
-
-      for (const requested of requestedItems) {
-        const product = data.products.find(
-          item => item.id === requested.id && item.active
-        );
-
-        const quantity = Number(requested.quantity);
-
-        if (
-          !product ||
-          !Number.isInteger(quantity) ||
-          quantity < 1 ||
-          quantity > 20
-        ) {
-          continue;
-        }
-
-        items.push({
-          productId: product.id,
-          name: product.name,
-          price: product.price,
-          quantity
+      if (
+        name.length < 2 ||
+        phone.length < 7 ||
+        requestedItems.length < 1 ||
+        requestedItems.length > 20
+      ) {
+        return res.status(400).json({
+          error: 'Completa tu nombre, teléfono y agrega al menos un producto.'
         });
       }
 
-      if (!items.length) {
-        throw new Error('PRODUCTS_UNAVAILABLE');
+      const saved = await updateData(data => {
+        const items = [];
+
+        for (const requested of requestedItems) {
+          const product = data.products.find(
+            item => item.id === requested.id && item.active
+          );
+
+          const quantity = Number(requested.quantity);
+
+          if (
+            !product ||
+            !Number.isInteger(quantity) ||
+            quantity < 1 ||
+            quantity > 20
+          ) {
+            continue;
+          }
+
+          items.push({
+            productId: product.id,
+            name: product.name,
+            price: product.price,
+            quantity
+          });
+        }
+
+        if (!items.length) {
+          throw new Error('PRODUCTS_UNAVAILABLE');
+        }
+
+        const total = items.reduce(
+          (sum, item) => sum + item.price * item.quantity,
+          0
+        );
+
+        const order = {
+          id: crypto.randomUUID(),
+          name,
+          phone,
+          note,
+          items,
+          total,
+          status: 'Pendiente',
+          createdAt: new Date().toISOString()
+        };
+
+        data.orders.unshift(order);
+
+        return order;
+      });
+
+      res.status(201).json({
+        message: 'Tu pedido fue registrado. El equipo de Lunairis se pondrá en contacto contigo.',
+        orderId: saved.id
+      });
+
+    } catch (error) {
+      if (error.message === 'PRODUCTS_UNAVAILABLE') {
+        return res.status(400).json({
+          error: 'No encontramos los productos del pedido. Actualiza el catálogo e inténtalo de nuevo.'
+        });
       }
 
-      const total = items.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
-      );
-
-      const order = {
-        id: crypto.randomUUID(),
-        name,
-        phone,
-        note,
-        items,
-        total,
-        status: 'Pendiente',
-        createdAt: new Date().toISOString()
-      };
-
-      data.orders.unshift(order);
-
-      return order;
-    });
-
-    res.status(201).json({
-      message: 'Tu pedido fue registrado. El equipo de Lunairis se pondrá en contacto contigo.',
-      orderId: saved.id
-    });
-
-  } catch (error) {
-    if (error.message === 'PRODUCTS_UNAVAILABLE') {
-      return res.status(400).json({
-        error: 'No encontramos los productos del pedido. Actualiza el catálogo e inténtalo de nuevo.'
-      });
+      next(error);
     }
-
-    next(error);
   }
-});
+);
 
 // ==========================================
 // RESERVAS
 // ==========================================
 
-app.post('/api/reservas', contactLimiter, async (req, res, next) => {
-  try {
-    const name = cleanText(req.body.name, 80);
-    const email = cleanText(req.body.email, 120).toLowerCase();
-    const phone = cleanText(req.body.phone, 30);
-    const date = cleanText(req.body.date, 20);
-    const time = cleanText(req.body.time, 20);
-    const guests = Number(req.body.guests);
-    const zone = cleanText(req.body.zone, 50);
-    const note = cleanText(req.body.note, 300);
+app.post(
+  '/api/reservas',
+  contactLimiter,
+  async (req, res, next) => {
+    try {
+      const name = cleanText(req.body.name, 80);
+      const email = cleanText(req.body.email, 120).toLowerCase();
+      const phone = cleanText(req.body.phone, 30);
+      const date = cleanText(req.body.date, 20);
+      const time = cleanText(req.body.time, 20);
+      const guests = Number(req.body.guests);
+      const zone = cleanText(req.body.zone, 50);
+      const note = cleanText(req.body.note, 300);
 
-    if (
-      name.length < 2 ||
-      !isValidEmail(email) ||
-      phone.length < 7 ||
-      !date ||
-      !time ||
-      !Number.isInteger(guests) ||
-      guests < 1
-    ) {
-      return res.status(400).json({
-        error: 'Completa tu nombre, correo, teléfono, fecha, hora y número de personas.'
-      });
-    }
-
-    const saved = await updateData(data => {
-      if (!Array.isArray(data.reservations)) {
-        data.reservations = [];
+      if (
+        name.length < 2 ||
+        !isValidEmail(email) ||
+        phone.length < 7 ||
+        !isValidDate(date) ||
+        !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) ||
+        !Number.isInteger(guests) ||
+        guests < 1 ||
+        guests > 30
+      ) {
+        return res.status(400).json({
+          error: 'Revisa los datos de tu reserva.'
+        });
       }
 
-      const reservation = {
-        id: crypto.randomUUID(),
-        name,
-        email,
-        phone,
-        date,
-        time,
-        guests,
-        zone: zone || 'General',
-        note,
-        status: 'Pendiente',
-        createdAt: new Date().toISOString()
-      };
+      const saved = await updateData(data => {
+        const reservation = {
+          id: crypto.randomUUID(),
+          name,
+          email,
+          phone,
+          date,
+          time,
+          guests,
+          zone: zone || 'General',
+          note,
+          status: 'Pendiente',
+          createdAt: new Date().toISOString()
+        };
 
-      data.reservations.unshift(reservation);
+        data.reservations.unshift(reservation);
 
-      return reservation;
-    });
+        return reservation;
+      });
 
-    res.status(201).json({
-      message: '¡Reserva solicitada con éxito! Nos pondremos en contacto para confirmarla.',
-      reservationId: saved.id
-    });
+      res.status(201).json({
+        message: '¡Reserva solicitada con éxito! Nos pondremos en contacto para confirmarla.',
+        reservationId: saved.id
+      });
 
-  } catch (error) {
-    next(error);
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 // ==========================================
-// INICIO DE SESION DEL ADMINISTRADOR
+// INICIO DE SESION ADMINISTRADOR
 // ==========================================
 
-app.post('/api/admin/login', loginLimiter, async (req, res, next) => {
-  try {
-    const email = cleanText(req.body.email, 120).toLowerCase();
+app.post(
+  '/api/admin/login',
+  loginLimiter,
+  async (req, res, next) => {
+    try {
+      const email = cleanText(req.body.email, 120).toLowerCase();
 
-    const password = typeof req.body.password === 'string'
-      ? req.body.password
-      : '';
+      const password = typeof req.body.password === 'string'
+        ? req.body.password
+        : '';
 
-    const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase();
-    const passwordHash = process.env.ADMIN_PASSWORD_HASH || '';
+      const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase();
+      const passwordHash = process.env.ADMIN_PASSWORD_HASH || '';
 
-    if (
-      !adminEmail ||
-      !passwordHash ||
-      passwordHash === 'PEGA_AQUI_EL_HASH_BCRYPT'
-    ) {
-      return res.status(503).json({
-        error: 'Falta configurar ADMIN_EMAIL y ADMIN_PASSWORD_HASH en el archivo .env.'
-      });
-    }
-
-    const valid = email === adminEmail &&
-      await bcrypt.compare(password, passwordHash);
-
-    if (!valid) {
-      return res.status(401).json({
-        error: 'Correo o contraseña incorrectos.'
-      });
-    }
-
-    req.session.regenerate(error => {
-      if (error) {
-        return next(error);
+      if (
+        !adminEmail ||
+        !passwordHash ||
+        passwordHash === 'PEGA_AQUI_EL_HASH_BCRYPT'
+      ) {
+        return res.status(503).json({
+          error: 'Falta configurar ADMIN_EMAIL y ADMIN_PASSWORD_HASH en el archivo .env.'
+        });
       }
 
-      req.session.admin = {
-        email: adminEmail
-      };
+      const valid = email === adminEmail &&
+        await bcrypt.compare(password, passwordHash);
 
-      req.session.save(saveError => {
-        if (saveError) {
-          return next(saveError);
+      if (!valid) {
+        return res.status(401).json({
+          error: 'Correo o contraseña incorrectos.'
+        });
+      }
+
+      req.session.regenerate(error => {
+        if (error) {
+          return next(error);
         }
 
-        res.json({
-          message: 'Sesión iniciada.',
+        req.session.admin = {
           email: adminEmail
+        };
+
+        req.session.save(saveError => {
+          if (saveError) {
+            return next(saveError);
+          }
+
+          res.json({
+            message: 'Sesión iniciada.',
+            email: adminEmail
+          });
         });
       });
-    });
 
-  } catch (error) {
-    next(error);
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 // ==========================================
-// COMPROBAR SESION DEL ADMINISTRADOR
+// COMPROBAR SESION ADMINISTRADOR
 // ==========================================
 
 app.get('/api/admin/session', (req, res) => {
@@ -617,302 +778,407 @@ app.get('/api/admin/session', (req, res) => {
 // CERRAR SESION
 // ==========================================
 
-app.post('/api/admin/logout', requireAdmin, (req, res, next) => {
-  req.session.destroy(error => {
-    if (error) {
-      return next(error);
-    }
+app.post(
+  '/api/admin/logout',
+  requireAdmin,
+  (req, res, next) => {
+    req.session.destroy(error => {
+      if (error) {
+        return next(error);
+      }
 
-    res.clearCookie('lunairis.sid', {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: IS_PRODUCTION
-    });
+      res.clearCookie('lunairis.sid', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: IS_PRODUCTION
+      });
 
-    res.json({
-      message: 'Sesión cerrada.'
+      res.json({
+        message: 'Sesión cerrada.'
+      });
     });
-  });
-});
+  }
+);
 
 // ==========================================
 // PANEL ADMINISTRATIVO - ESTADISTICAS
 // ==========================================
 
-app.get('/api/admin/dashboard', requireAdmin, async (_req, res, next) => {
-  try {
-    const data = await readData();
+app.get(
+  '/api/admin/dashboard',
+  requireAdmin,
+  async (_req, res, next) => {
+    try {
+      const data = await readData();
 
-    const now = Date.now();
+      const now = Date.now();
 
-    const lastSevenDays = Array.from(
-      { length: 7 },
-      (_, index) => {
-        const date = new Date(now);
+      const lastSevenDays = Array.from(
+        { length: 7 },
+        (_, index) => {
+          const date = new Date(now);
 
-        date.setDate(date.getDate() - (6 - index));
+          date.setDate(date.getDate() - (6 - index));
 
-        const key = date.toISOString().slice(0, 10);
+          const key = date.toISOString().slice(0, 10);
 
-        const count = data.orders.filter(
-          order => order.createdAt.slice(0, 10) === key
-        ).length;
+          const count = data.orders.filter(
+            order => order.createdAt?.slice(0, 10) === key
+          ).length;
 
-        return {
-          label: date.toLocaleDateString('es-CO', {
-            weekday: 'short'
-          }).replace('.', ''),
-          count
-        };
-      }
-    );
+          return {
+            label: date.toLocaleDateString('es-CO', {
+              weekday: 'short'
+            }).replace('.', ''),
+            count
+          };
+        }
+      );
 
-    res.json({
-      stats: {
-        products: data.products.filter(item => item.active).length,
-        messages: data.messages.length,
-        newMessages: data.messages.filter(
-          item => item.status === 'Nuevo'
-        ).length,
-        orders: data.orders.length,
-        pendingOrders: data.orders.filter(
-          item => item.status === 'Pendiente'
-        ).length,
-        revenue: data.orders
-          .filter(item => item.status !== 'Cancelado')
-          .reduce((sum, item) => sum + item.total, 0)
-      },
+      res.json({
+        stats: {
+          products: data.products.filter(item => item.active).length,
 
-      weeklyOrders: lastSevenDays
-    });
+          messages: data.messages.length,
 
-  } catch (error) {
-    next(error);
+          newMessages: data.messages.filter(
+            item => item.status === 'Nuevo'
+          ).length,
+
+          orders: data.orders.length,
+
+          pendingOrders: data.orders.filter(
+            item => item.status === 'Pendiente'
+          ).length,
+
+          revenue: data.orders
+            .filter(item => item.status !== 'Cancelado')
+            .reduce((sum, item) => sum + item.total, 0)
+        },
+
+        weeklyOrders: lastSevenDays
+      });
+
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 // ==========================================
 // ADMINISTRAR PRODUCTOS
 // ==========================================
 
-app.get('/api/admin/products', requireAdmin, async (_req, res, next) => {
-  try {
-    res.json((await readData()).products);
-  } catch (error) {
-    next(error);
-  }
-});
-
-app.post('/api/admin/products', requireAdmin, async (req, res, next) => {
-  try {
-    const product = validProduct(req.body);
-
-    if (!product) {
-      return res.status(400).json({
-        error: 'Completa nombre, categoría, descripción y un precio válido.'
-      });
+app.get(
+  '/api/admin/products',
+  requireAdmin,
+  async (_req, res, next) => {
+    try {
+      res.json((await readData()).products);
+    } catch (error) {
+      next(error);
     }
-
-    const saved = await updateData(data => {
-      const item = {
-        id: crypto.randomUUID(),
-        ...product,
-        createdAt: new Date().toISOString()
-      };
-
-      data.products.unshift(item);
-
-      return item;
-    });
-
-    res.status(201).json(saved);
-
-  } catch (error) {
-    next(error);
   }
-});
+);
 
-app.put('/api/admin/products/:id', requireAdmin, async (req, res, next) => {
-  try {
-    const product = validProduct(req.body);
+app.post(
+  '/api/admin/products',
+  requireAdmin,
+  async (req, res, next) => {
+    try {
+      const product = validProduct(req.body);
 
-    if (!product) {
-      return res.status(400).json({
-        error: 'Completa los campos del producto y revisa el precio.'
-      });
-    }
-
-    const updated = await updateData(data => {
-      const index = data.products.findIndex(
-        item => item.id === req.params.id
-      );
-
-      if (index === -1) {
-        return null;
+      if (!product) {
+        return res.status(400).json({
+          error: 'Completa nombre, categoría, descripción y un precio válido.'
+        });
       }
 
-      data.products[index] = {
-        ...data.products[index],
-        ...product,
-        updatedAt: new Date().toISOString()
-      };
+      const saved = await updateData(data => {
+        const item = {
+          id: crypto.randomUUID(),
+          ...product,
+          createdAt: new Date().toISOString()
+        };
 
-      return data.products[index];
-    });
+        data.products.unshift(item);
 
-    if (!updated) {
-      return res.status(404).json({
-        error: 'Producto no encontrado.'
+        return item;
       });
+
+      res.status(201).json(saved);
+
+    } catch (error) {
+      next(error);
     }
-
-    res.json(updated);
-
-  } catch (error) {
-    next(error);
   }
-});
+);
 
-app.delete('/api/admin/products/:id', requireAdmin, async (req, res, next) => {
-  try {
-    const deleted = await updateData(data => {
-      const index = data.products.findIndex(
-        item => item.id === req.params.id
-      );
+app.put(
+  '/api/admin/products/:id',
+  requireAdmin,
+  async (req, res, next) => {
+    try {
+      const product = validProduct(req.body);
 
-      if (index === -1) {
-        return false;
+      if (!product) {
+        return res.status(400).json({
+          error: 'Completa los campos del producto y revisa el precio.'
+        });
       }
 
-      data.products.splice(index, 1);
+      const updated = await updateData(data => {
+        const index = data.products.findIndex(
+          item => item.id === req.params.id
+        );
 
-      return true;
-    });
+        if (index === -1) {
+          return null;
+        }
 
-    if (!deleted) {
-      return res.status(404).json({
-        error: 'Producto no encontrado.'
+        data.products[index] = {
+          ...data.products[index],
+          ...product,
+          updatedAt: new Date().toISOString()
+        };
+
+        return data.products[index];
       });
+
+      if (!updated) {
+        return res.status(404).json({
+          error: 'Producto no encontrado.'
+        });
+      }
+
+      res.json(updated);
+
+    } catch (error) {
+      next(error);
     }
-
-    res.json({
-      message: 'Producto eliminado.'
-    });
-
-  } catch (error) {
-    next(error);
   }
-});
+);
+
+app.delete(
+  '/api/admin/products/:id',
+  requireAdmin,
+  async (req, res, next) => {
+    try {
+      const deleted = await updateData(data => {
+        const index = data.products.findIndex(
+          item => item.id === req.params.id
+        );
+
+        if (index === -1) {
+          return false;
+        }
+
+        data.products.splice(index, 1);
+
+        return true;
+      });
+
+      if (!deleted) {
+        return res.status(404).json({
+          error: 'Producto no encontrado.'
+        });
+      }
+
+      res.json({
+        message: 'Producto eliminado.'
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 // ==========================================
 // MENSAJES DEL CONTACTO
 // ==========================================
 
-app.get('/api/admin/messages', requireAdmin, async (_req, res, next) => {
-  try {
-    res.json((await readData()).messages);
-  } catch (error) {
-    next(error);
-  }
-});
-
-app.patch('/api/admin/messages/:id', requireAdmin, async (req, res, next) => {
-  try {
-    const status = cleanText(req.body.status, 20);
-
-    if (!['Nuevo', 'En seguimiento', 'Respondido'].includes(status)) {
-      return res.status(400).json({
-        error: 'Estado no válido.'
-      });
+app.get(
+  '/api/admin/messages',
+  requireAdmin,
+  async (_req, res, next) => {
+    try {
+      res.json((await readData()).messages);
+    } catch (error) {
+      next(error);
     }
+  }
+);
 
-    const item = await updateData(data => {
-      const message = data.messages.find(
-        entry => entry.id === req.params.id
-      );
+app.patch(
+  '/api/admin/messages/:id',
+  requireAdmin,
+  async (req, res, next) => {
+    try {
+      const status = cleanText(req.body.status, 20);
 
-      if (!message) {
-        return null;
+      if (!['Nuevo', 'En seguimiento', 'Respondido'].includes(status)) {
+        return res.status(400).json({
+          error: 'Estado no válido.'
+        });
       }
 
-      message.status = status;
+      const item = await updateData(data => {
+        const message = data.messages.find(
+          entry => entry.id === req.params.id
+        );
 
-      return message;
-    });
+        if (!message) {
+          return null;
+        }
 
-    if (!item) {
-      return res.status(404).json({
-        error: 'Mensaje no encontrado.'
+        message.status = status;
+
+        return message;
       });
+
+      if (!item) {
+        return res.status(404).json({
+          error: 'Mensaje no encontrado.'
+        });
+      }
+
+      res.json(item);
+
+    } catch (error) {
+      next(error);
     }
-
-    res.json(item);
-
-  } catch (error) {
-    next(error);
   }
-});
+);
 
 // ==========================================
 // ADMINISTRAR PEDIDOS
 // ==========================================
 
-app.get('/api/admin/orders', requireAdmin, async (_req, res, next) => {
-  try {
-    res.json((await readData()).orders);
-  } catch (error) {
-    next(error);
-  }
-});
-
-app.patch('/api/admin/orders/:id', requireAdmin, async (req, res, next) => {
-  try {
-    const status = cleanText(req.body.status, 20);
-
-    if (
-      ![
-        'Pendiente',
-        'En preparación',
-        'Listo',
-        'Entregado',
-        'Cancelado'
-      ].includes(status)
-    ) {
-      return res.status(400).json({
-        error: 'Estado no válido.'
-      });
+app.get(
+  '/api/admin/orders',
+  requireAdmin,
+  async (_req, res, next) => {
+    try {
+      res.json((await readData()).orders);
+    } catch (error) {
+      next(error);
     }
+  }
+);
 
-    const item = await updateData(data => {
-      const order = data.orders.find(
-        entry => entry.id === req.params.id
-      );
+app.patch(
+  '/api/admin/orders/:id',
+  requireAdmin,
+  async (req, res, next) => {
+    try {
+      const status = cleanText(req.body.status, 20);
 
-      if (!order) {
-        return null;
+      if (
+        ![
+          'Pendiente',
+          'En preparación',
+          'Listo',
+          'Entregado',
+          'Cancelado'
+        ].includes(status)
+      ) {
+        return res.status(400).json({
+          error: 'Estado no válido.'
+        });
       }
 
-      order.status = status;
-      order.updatedAt = new Date().toISOString();
+      const item = await updateData(data => {
+        const order = data.orders.find(
+          entry => entry.id === req.params.id
+        );
 
-      return order;
-    });
+        if (!order) {
+          return null;
+        }
 
-    if (!item) {
-      return res.status(404).json({
-        error: 'Pedido no encontrado.'
+        order.status = status;
+        order.updatedAt = new Date().toISOString();
+
+        return order;
       });
+
+      if (!item) {
+        return res.status(404).json({
+          error: 'Pedido no encontrado.'
+        });
+      }
+
+      res.json(item);
+
+    } catch (error) {
+      next(error);
     }
-
-    res.json(item);
-
-  } catch (error) {
-    next(error);
   }
-});
+);
 
 // ==========================================
-// MANEJADORES DE ERRORES
+// ADMINISTRAR RESERVAS
+// ==========================================
+
+app.get(
+  '/api/admin/reservations',
+  requireAdmin,
+  async (_req, res, next) => {
+    try {
+      res.json((await readData()).reservations);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+app.patch(
+  '/api/admin/reservations/:id',
+  requireAdmin,
+  async (req, res, next) => {
+    try {
+      const status = cleanText(req.body.status, 20);
+
+      if (
+        !['Pendiente', 'Confirmada', 'Cancelada'].includes(status)
+      ) {
+        return res.status(400).json({
+          error: 'Estado de reserva no válido.'
+        });
+      }
+
+      const item = await updateData(data => {
+        const reservation = data.reservations.find(
+          entry => entry.id === req.params.id
+        );
+
+        if (!reservation) {
+          return null;
+        }
+
+        reservation.status = status;
+        reservation.updatedAt = new Date().toISOString();
+
+        return reservation;
+      });
+
+      if (!item) {
+        return res.status(404).json({
+          error: 'Reserva no encontrada.'
+        });
+      }
+
+      res.json(item);
+
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ==========================================
+// RUTAS NO ENCONTRADAS
 // ==========================================
 
 app.use('/api', (_req, res) => {
@@ -921,11 +1187,29 @@ app.use('/api', (_req, res) => {
   });
 });
 
+// ==========================================
+// SERVIR FRONTEND
+// ==========================================
+
+app.use(express.static(FRONTEND_DIR, {
+  extensions: ['html']
+}));
+
+// ==========================================
+// MANEJADOR DE ERRORES
+// ==========================================
+
 app.use((error, _req, res, _next) => {
   console.error('Error del servidor:', error);
 
-  res.status(500).json({
-    error: 'Ocurrió un error interno. Inténtalo nuevamente.'
+  if (res.headersSent) {
+    return;
+  }
+
+  res.status(error.status || 500).json({
+    error: error.status && error.status < 500
+      ? error.message
+      : 'Ocurrió un error interno. Inténtalo nuevamente.'
   });
 });
 
@@ -933,19 +1217,36 @@ app.use((error, _req, res, _next) => {
 // INICIAR SERVIDOR
 // ==========================================
 
-ensureStore()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(
-        `🟢 Lunairis Café está listo en http://localhost:${PORT}`
-      );
+async function startServer() {
+  try {
+    console.log('Conectando con MongoDB Atlas...');
+
+    await mongoose.connect(MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000
     });
-  })
-  .catch(error => {
-    console.error(
-      '🔴 No se pudo iniciar el almacenamiento:',
-      error
-    );
+
+    console.log('MongoDB Atlas conectado correctamente.');
+
+    await ensureStore();
+
+    console.log('Almacenamiento de Lunairis preparado.');
+
+    app.listen(PORT, () => {
+      console.log('------------------------------------');
+      console.log('LUNAIRIS CAFE');
+      console.log(`Servidor: http://localhost:${PORT}`);
+      console.log('MongoDB: Conectado');
+      console.log(`Gemini: ${ai ? 'Configurado' : 'Sin configurar'}`);
+      console.log('------------------------------------');
+    });
+
+  } catch (error) {
+    console.error('Error al iniciar Lunairis Café:', error.message);
+
+    await mongoose.disconnect().catch(() => {});
 
     process.exit(1);
-  });
+  }
+}
+
+startServer();
