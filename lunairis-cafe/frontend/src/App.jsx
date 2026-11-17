@@ -10,6 +10,9 @@ import Footer from './components/Footer.jsx';
 import CartDetails from './components/CartDetails.jsx';
 import { useCart } from './hooks/useCart';
 
+// 1. Importa el componente del asistente de IA que creamos
+import AdminAIAssistant from './components/AdminAIAssistant.jsx';
+
 export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   
@@ -43,6 +46,9 @@ export default function App() {
           onClose={() => setIsCartOpen(false)}
         />
       )}
+
+      {/* 2. Coloca el botón flotante de IA aquí para que aparezca abajo a la derecha */}
+      <AdminAIAssistant />
     </>
   );
 }
