@@ -1,6 +1,5 @@
 node_modules/
 .env
-.env*
 .env copy
 .DS_Store
 backend/data/runtime.json
