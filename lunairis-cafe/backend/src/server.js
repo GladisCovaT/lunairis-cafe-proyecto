@@ -13,6 +13,17 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const FRONTEND_DIR = path.join(__dirname, '..', '..', 'frontend', 'dist');
+const mongoose = require('mongoose');
+require('dotenv').config();
+
+// Conexión a MongoDB Atlas
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => {
+    console.log('🟢 Conectado exitosamente a MongoDB Atlas');
+  })
+  .catch((error) => {
+    console.error('🔴 Error al conectar a MongoDB Atlas:', error);
+  });
 
 if (IS_PRODUCTION && (!process.env.SESSION_SECRET || !process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD_HASH)) {
   throw new Error('Configura SESSION_SECRET, ADMIN_EMAIL y ADMIN_PASSWORD_HASH antes de iniciar en producción.');
