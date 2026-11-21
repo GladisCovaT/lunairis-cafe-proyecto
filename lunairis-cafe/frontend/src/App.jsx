@@ -10,13 +10,11 @@ import Footer from './components/Footer.jsx';
 import CartDetails from './components/CartDetails.jsx';
 import { useCart } from './hooks/useCart';
 
-// 1. Importa el componente del asistente de IA que creamos
 import AdminAIAssistant from './components/AdminAIAssistant.jsx';
 
 export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   
-  // El carrito vive aquí arriba, siendo la única fuente de verdad
   const cart = useCart();
 
   return (

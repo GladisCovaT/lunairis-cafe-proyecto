@@ -90,7 +90,7 @@ export default function ContactSection() {
       <div className="contact-social-links" style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginTop: '25px', flexWrap: 'wrap' }}>
         {/* WhatsApp */}
         <a 
-          href="https://wa.me/57TU_NUMERO_AQUI?text=Hola%20Lunairis%20Café,%20me%20gustaría%20hacer%20una%20consulta." 
+          href="https://wa.me/573148691327?text=Hola%20Lunairis%20Café,%20me%20gustaría%20hacer%20una%20consulta." 
           target="_blank" 
           rel="noopener noreferrer"
           style={{ textDecoration: 'none', padding: '10px 20px', borderRadius: '30px', background: '#1b3b2b', color: 'white', fontWeight: '600', fontSize: '14px' }}
@@ -100,7 +100,7 @@ export default function ContactSection() {
 
         {/* Instagram */}
         <a 
-          href="https://instagram.com/tu_usuario" 
+          href="https://instagram.com/glxds_xpx" 
           target="_blank" 
           rel="noopener noreferrer"
           style={{ textDecoration: 'none', padding: '10px 20px', borderRadius: '30px', background: '#c49a70', color: 'white', fontWeight: '600', fontSize: '14px' }}
